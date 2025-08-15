@@ -10,5 +10,14 @@ class User(AbstractUser):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self.role == 'admin':
+            self.is_staff = True
+            self.is_superuser = True
+        else:
+            self.is_staff = False
+            self.is_superuser = False
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.username
