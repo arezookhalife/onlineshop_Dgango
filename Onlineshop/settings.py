@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'orders',
     'rest_framework',
     'drf_spectacular',
+    'cart',
 ]
 
 REST_FRAMEWORK = {
