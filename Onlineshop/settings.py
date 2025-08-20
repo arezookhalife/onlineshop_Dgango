@@ -138,3 +138,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# ZarinPal Payment Settings
+ZARINPAL_MERCHANT_ID = '5ba078bd-644a-4142-aa63-531e1cedefea'  # Test Merchant ID
+ZARINPAL_PAYMENT_REQUEST_URL = 'https://sandbox.zarinpal.com/pg/rest/WebGate/PaymentRequest.json'  # Test PaymentRequest URL
+ZARINPAL_PAYMENT_VERIFICATION_URL = 'https://sandbox.zarinpal.com/pg/rest/WebGate/PaymentVerification.json'  # Test PaymentVerification URL
+ZARINPAL_CALLBACK_URL = 'http://127.0.0.1:8000/api/orders/payment/callback/'
+
