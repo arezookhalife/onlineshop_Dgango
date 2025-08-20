@@ -45,6 +45,8 @@ MERCHANT_ID = settings.ZARINPAL_MERCHANT_ID
 PAYMENT_REQUEST_URL = settings.ZARINPAL_PAYMENT_REQUEST_URL
 PAYMENT_VERIFICATION_URL = settings.ZARINPAL_PAYMENT_VERIFICATION_URL
 CALLBACK_URL = settings.ZARINPAL_CALLBACK_URL
+CURRENCY = settings.ZARINPAL_CURRENCY
+STARTPAY_URL = settings.ZARINPAL_STARTPAY_URL
 
 
 @api_view(['POST'])
@@ -61,8 +63,7 @@ def checkout(request):
         return Response({'message': 'Cart is empty'}, status=400)
 
     total_price = sum(item.product.price * item.quantity for item in cart_items)
-
-    order = Order.objects.create(user=user, status='pending')
+    order = Order.objects.create(user=user, status='pending', total_price=total_price)
     for item in cart_items:
         OrderItem.objects.create(
             order=order,
@@ -75,19 +76,22 @@ def checkout(request):
         "merchant_id": MERCHANT_ID,
         "amount": int(total_price),
         "callback_url": CALLBACK_URL,
+        "currency": CURRENCY,
         "description": f"Payment for user {user.username}",
-        "metadata": {"email": user.email, "order_id": order.id}
+        "metadata": {"email": user.email, "order_id": str(order.id)}
     }
 
     response = requests.post(PAYMENT_REQUEST_URL, json=payment_data)
+    print(response.json())
     if response.status_code == 200:
         res_data = response.json()
-        if res_data.get('Status') == 100:
-            authority = res_data['Authority']
+        if res_data.get('data') and res_data['data'].get('code') == 100:
+            authority = res_data['data']['authority']
 
-            PaymentSession.objects.create(user=user, cart=cart, authority=authority)
+            PaymentSession.objects.create(user=user, cart=cart, authority=authority, order=order)
 
-            payment_url = f"https://www.zarinpal.com/pg/StartPay/{authority}"
+            payment_url = f"{STARTPAY_URL}{authority}"
+
             return Response({'payment_url': payment_url})
 
     return Response({'message': 'Payment request failed'}, status=500)
@@ -117,10 +121,9 @@ def payment_callback(request):
         }
         res = requests.post(PAYMENT_VERIFICATION_URL, json=verification_data)
         res_data = res.json()
-        if res_data.get('Status') == 100:
+        if res_data.get('data')and res_data['data'].get('code') == 100:
 
-            order_id = res_data.get('metadata', {}).get('order_id')
-            order = Order.objects.get(id=order_id, user=user)
+            order = payment_session.order
             order.status = 'completed'
             order.save()
 
