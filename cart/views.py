@@ -15,7 +15,7 @@ class CartViewSet(viewsets.ViewSet):
 
     def create(self, request):
         cart, _ = Cart.objects.get_or_create(user=request.user)
-        product_id = request.data.get("product_id")
+        product_id = request.data.get("product")
         quantity = int(request.data.get("quantity", 1))
 
         try:
