@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -145,3 +146,12 @@ ZARINPAL_PAYMENT_VERIFICATION_URL = "https://sandbox.zarinpal.com/pg/v4/payment/
 ZARINPAL_STARTPAY_URL = "https://sandbox.zarinpal.com/pg/StartPay/"
 ZARINPAL_CALLBACK_URL = "http://127.0.0.1:8000/api/orders/payment/callback/"
 ZARINPAL_CURRENCY = "IRT"
+
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),   # مدت زمان اعتبار access token (اینجا 60 دقیقه)
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),      # مدت زمان اعتبار refresh token (اینجا 7 روز)
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+}

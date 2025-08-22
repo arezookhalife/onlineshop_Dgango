@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from .models import Order, OrderItem, PaymentSession
 from .serializers import OrderSerializer
 from django.conf import settings
+from users.models import UserInfo
+from django.db import transaction
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -54,6 +56,22 @@ STARTPAY_URL = settings.ZARINPAL_STARTPAY_URL
 def checkout(request):
     user = request.user
     try:
+        user_info = user.user_info
+    except UserInfo.DoesNotExist:
+        return Response(
+            {'message': 'User information is required before checkout.'},
+            status=400
+        )
+
+    required_fields = [user_info.full_name, user_info.phone, user_info.address,
+                       user_info.city, user_info.postal_code]
+    if not all(required_fields):
+        return Response(
+            {'message': 'Please complete your profile (name, phone, address, city, postal code).'},
+            status=400
+        )
+
+    try:
         cart = Cart.objects.get(user=user)
     except Cart.DoesNotExist:
         return Response({'message': 'Cart is empty'}, status=400)
@@ -62,8 +80,33 @@ def checkout(request):
     if not cart_items.exists():
         return Response({'message': 'Cart is empty'}, status=400)
 
+    insufficient_stock = []
+    for item in cart_items:
+        if item.quantity > item.product.stock:
+            insufficient_stock.append({
+                'product': item.product.name,
+                'available_stock': item.product.stock,
+                'requested': item.quantity
+            })
+
+    if insufficient_stock:
+        return Response({
+            'message': 'Some products have insufficient stock',
+            'details': insufficient_stock
+        }, status=400)
+
     total_price = sum(item.product.price * item.quantity for item in cart_items)
-    order = Order.objects.create(user=user, status='pending', total_price=total_price)
+
+    order, created = Order.objects.get_or_create(
+        user=user,
+        status='pending',
+        defaults={'total_price': total_price}
+    )
+    if not created:
+        order.total_price = total_price
+        order.items.all().delete()
+        order.save()
+
     for item in cart_items:
         OrderItem.objects.create(
             order=order,
@@ -97,7 +140,6 @@ def checkout(request):
     return Response({'message': 'Payment request failed'}, status=500)
 
 
-
 @api_view(['GET'])
 def payment_callback(request):
     status = request.GET.get('Status')
@@ -109,10 +151,10 @@ def payment_callback(request):
         except PaymentSession.DoesNotExist:
             return Response({'message': 'Payment session not found'}, status=400)
 
+        order = payment_session.order
         cart = payment_session.cart
-        user = payment_session.user
         cart_items = CartItem.objects.filter(cart=cart)
-        total_price = sum(item.product.price * item.quantity for item in cart_items)
+        total_price = int(payment_session.order.total_price)
 
         verification_data = {
             "merchant_id": MERCHANT_ID,
@@ -121,17 +163,35 @@ def payment_callback(request):
         }
         res = requests.post(PAYMENT_VERIFICATION_URL, json=verification_data)
         res_data = res.json()
-        if res_data.get('data')and res_data['data'].get('code') == 100:
 
-            order = payment_session.order
-            order.status = 'completed'
-            order.save()
+        if not res_data.get("data"):
+            return Response({"message": "Invalid payment response"}, status=400)
 
-            cart_items.delete()
-            cart.delete()
+        code = res_data["data"].get("code")
+        if code not in [100, 101]:
+            return Response({"message": f"Payment failed with code {code}"}, status=400)
 
-            payment_session.delete()
+        try:
+            with transaction.atomic():
+                for item in cart_items:
+                    if item.quantity > item.product.stock:
+                        return Response({
+                            'message': f"Product '{item.product.name}' has insufficient stock"
+                        }, status=400)
 
-            return Response({'message': 'Payment successful and order completed'})
+                for item in cart_items:
+                    item.product.stock -= item.quantity
+                    item.product.save()
 
+                order.status = 'completed'
+                order.save()
+
+                cart_items.delete()
+                cart.delete()
+                payment_session.delete()
+
+        except Exception as e:
+            return Response({'message': f'Error processing order: {str(e)}'}, status=500)
+
+        return Response({'message': 'Payment successful and order completed'})
     return Response({'message': 'Payment failed'}, status=400)
