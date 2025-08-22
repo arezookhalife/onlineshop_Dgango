@@ -4,13 +4,15 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Cart, CartItem
 from .serializers import CartItemSerializer
 from products.models import Product
+from .permissions import IsCartOwner
 
 class CartViewSet(viewsets.ModelViewSet):
-    queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCartOwner]
 
     def get_queryset(self):
+        if self.request.user.is_staff or self.request.user.is_superuser:
+            return CartItem.objects.all()
         cart, _ = Cart.objects.get_or_create(user=self.request.user)
         return CartItem.objects.filter(cart=cart)
 
@@ -63,9 +65,8 @@ class CartViewSet(viewsets.ModelViewSet):
         return Response({"message": "Product added to cart successfully", "item": serializer.data}, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None, *args, **kwargs):
-        cart, _ = Cart.objects.get_or_create(user=request.user)
         try:
-            cart = Cart.objects.get(user=request.user)
+            cart, _ = Cart.objects.get_or_create(user=request.user)
         except Cart.DoesNotExist:
             return Response({"message": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
         try:

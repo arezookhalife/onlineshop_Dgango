@@ -4,21 +4,7 @@ from django.conf import settings
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
-    ROLE_CHOICES = (
-        ('customer', 'Customer'),
-        ('admin', 'Admin'),
-    )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        if self.role == 'admin':
-            self.is_staff = True
-            self.is_superuser = True
-        else:
-            self.is_staff = False
-            self.is_superuser = False
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.username
@@ -35,7 +21,7 @@ class UserInfo(models.Model):
     address = models.TextField()
     city = models.CharField(max_length=100)
     postal_code = models.CharField(max_length=20)
-    country = models.CharField(max_length=100, default="Iran")  # اختیاری
+    country = models.CharField(max_length=100, default="Iran")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
