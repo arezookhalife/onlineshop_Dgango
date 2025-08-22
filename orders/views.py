@@ -9,24 +9,19 @@ from .serializers import OrderSerializer
 from django.conf import settings
 from users.models import UserInfo
 from django.db import transaction
+from .permissions import OrderPermission
 
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated, OrderPermission]
 
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
             return Order.objects.all()
         return Order.objects.filter(user=user)
-
-    def get_permissions(self):
-        if self.action in ['create', 'list', 'retrieve']:
-            return [permissions.IsAuthenticated()]
-        elif self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return super().get_permissions()
 
     def perform_create(self, serializer):
         order = serializer.save(user=self.request.user)
